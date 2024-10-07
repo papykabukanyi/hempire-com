@@ -4,6 +4,8 @@ import FileUpload from './FileUpload'; // Component for file uploads
 import SignaturePad from './SignaturePad'; // Component for signature
 import Agreement from './Agreement'; // Component for agreement checkbox
 import InputMask from 'react-input-mask'; // For SSN and EIN masking
+import { jsPDF } from 'jspdf'; // For generating PDFs
+import sendEmail from './sendEmail'; // For sending emails
 
 function Form() {
   const [formData, setFormData] = useState({
@@ -63,6 +65,16 @@ function Form() {
     }
   };
 
+  // Generate PDF
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    doc.text(`Loan Application for ${formData.borrowerFirstName} ${formData.borrowerLastName}`, 10, 10);
+    doc.text(`Company Name: ${formData.companyName}`, 10, 20);
+    doc.text(`Loan Amount: ${formData.loanAmount}`, 10, 30);
+    // Add more form data to the PDF as required
+    return doc.output('blob'); // Return the PDF as a blob
+  };
+
   // Handle form submission
   const handleFormSubmit = async (e) => {
     e.preventDefault();
@@ -72,21 +84,31 @@ function Form() {
       return;
     }
 
+    const pdfBlob = generatePDF(); // Generate the PDF from form data
+
     const data = new FormData();
-    data.append('borrowerEmail', formData.borrowerEmail);
-    data.append('borrowerName', `${formData.borrowerFirstName} ${formData.borrowerLastName}`);
-    data.append('appId', '12345'); // Dynamic ID can be generated here
+    data.append('pdf', pdfBlob, 'application.pdf'); // Attach the PDF
     files.forEach((file) => {
-      data.append('files', file);
+      data.append('files', file); // Attach user-uploaded files
     });
     additionalFiles.forEach((file) => {
-      data.append('additionalFiles', file);
+      data.append('additionalFiles', file); // Attach additional files
     });
 
     try {
+      // Send form data to the server and admins via email
       await axios.post('http://localhost:5000/submit', data, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      // Send confirmation email to the borrower
+      const borrowerEmailData = {
+        to: formData.borrowerEmail,
+        subject: 'Application Submitted',
+        message: `Dear ${formData.borrowerFirstName}, your loan application has been submitted.`,
+      };
+      sendEmail(borrowerEmailData);
+
       alert('Application submitted successfully!');
     } catch (error) {
       console.error('Error submitting form:', error);

@@ -8,6 +8,10 @@
 # testing
 /coverage
 
+# Virtual environments
+venv/
+.venv/
+
 # production
 /build
 

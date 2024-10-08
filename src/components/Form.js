@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import axios from 'axios'; // For sending form data to the server
+import axios from 'axios';
 import FileUpload from './FileUpload'; // Component for file uploads
-import SignaturePad from './SignaturePad'; // Component for signature
+import SignaturePad from './SignaturePad'; // Component for signature capture
 import Agreement from './Agreement'; // Component for agreement checkbox
 import InputMask from 'react-input-mask'; // For SSN and EIN masking
-import { jsPDF } from 'jspdf'; // For generating PDFs
-import sendEmail from './sendEmail'; // For sending emails
+import jsPDF from 'jspdf'; // For generating PDFs
 
 function Form() {
   const [formData, setFormData] = useState({
@@ -50,29 +49,38 @@ function Form() {
   });
 
   const [files, setFiles] = useState([]); // Store uploaded files
+  const [additionalFiles, setAdditionalFiles] = useState([]); // Additional files state
   const [signature, setSignature] = useState(''); // Store signature
   const [agreementChecked, setAgreementChecked] = useState(false); // Agreement checkbox state
-  const [additionalFiles, setAdditionalFiles] = useState([]); // Additional files state
 
   // Handle input changes for form fields
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'borrowerOwnership' || name === 'coapplicantOwnership') {
-      const numberValue = value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
-      setFormData({ ...formData, [name]: numberValue + '%' }); // Append '%' symbol to ownership values
+      setFormData({ ...formData, [name]: value.replace(/[^0-9]/g, '') + '%' });
     } else {
       setFormData({ ...formData, [name]: value });
     }
   };
 
-  // Generate PDF
+  // Add more files function to handle additional uploads
+  const addMoreFiles = (e) => {
+    const newFiles = [...additionalFiles, ...e.target.files];
+    setAdditionalFiles(newFiles);
+  };
+
+  // PDF generation
   const generatePDF = () => {
     const doc = new jsPDF();
-    doc.text(`Loan Application for ${formData.borrowerFirstName} ${formData.borrowerLastName}`, 10, 10);
+    doc.text('Loan Application Form', 10, 10);
     doc.text(`Company Name: ${formData.companyName}`, 10, 20);
-    doc.text(`Loan Amount: ${formData.loanAmount}`, 10, 30);
-    // Add more form data to the PDF as required
-    return doc.output('blob'); // Return the PDF as a blob
+    doc.text(`Borrower Name: ${formData.borrowerFirstName} ${formData.borrowerLastName}`, 10, 30);
+    doc.text(`Borrower Email: ${formData.borrowerEmail}`, 10, 40);
+    doc.text(`Business Type: ${formData.businessType}`, 10, 50);
+    doc.text(`Loan Amount: ${formData.loanAmount}`, 10, 60);
+    doc.text(`Max Down Payment: ${formData.maxDownPayment}`, 10, 70);
+    // Add more fields as needed
+    return doc.output('blob'); // Returns PDF blob
   };
 
   // Handle form submission
@@ -84,42 +92,35 @@ function Form() {
       return;
     }
 
-    const pdfBlob = generatePDF(); // Generate the PDF from form data
-
-    const data = new FormData();
-    data.append('pdf', pdfBlob, 'application.pdf'); // Attach the PDF
-    files.forEach((file) => {
-      data.append('files', file); // Attach user-uploaded files
-    });
-    additionalFiles.forEach((file) => {
-      data.append('additionalFiles', file); // Attach additional files
-    });
+    const pdfBlob = generatePDF();
+    const formDataToSend = {
+      borrowerEmail: formData.borrowerEmail,
+      borrowerName: `${formData.borrowerFirstName} ${formData.borrowerLastName}`,
+      appId: '12345', // Sample application ID
+      attachments: [...files, ...additionalFiles].map((file) => ({
+        name: file.name,
+        content: file.base64,
+      })),
+    };
 
     try {
-      // Send form data to the server and admins via email
-      await axios.post('http://localhost:5000/submit', data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const response = await axios.post('http://localhost:5000/send-email', {
+        ...formDataToSend,
+        attachments: [
+          { name: 'application.pdf', content: await pdfBlob.text() },
+          ...formDataToSend.attachments,
+        ],
       });
 
-      // Send confirmation email to the borrower
-      const borrowerEmailData = {
-        to: formData.borrowerEmail,
-        subject: 'Application Submitted',
-        message: `Dear ${formData.borrowerFirstName}, your loan application has been submitted.`,
-      };
-      sendEmail(borrowerEmailData);
-
-      alert('Application submitted successfully!');
+      if (response.status === 200) {
+        alert('Application submitted successfully!');
+      } else {
+        alert('Failed to submit the application.');
+      }
     } catch (error) {
       console.error('Error submitting form:', error);
       alert('Error submitting form. Please try again.');
     }
-  };
-
-  // Add more files function to handle additional uploads
-  const addMoreFiles = (e) => {
-    const newFiles = [...additionalFiles, ...e.target.files];
-    setAdditionalFiles(newFiles);
   };
 
   return (

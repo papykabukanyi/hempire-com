@@ -1,21 +1,20 @@
-const nodemailer = require("nodemailer");
-require("dotenv").config(); // to use .env for SMTP credentials
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-const sendEmail = async (borrowerEmail, borrowerName, appId, formDataToSend) => {
-  // Create a transporter object using Gmail's SMTP service
+const sendEmail = async (borrowerEmail, borrowerName, appId, attachments) => {
   let transporter = nodemailer.createTransport({
-    service: "gmail",
+    service: 'gmail',
     auth: {
-      user: process.env.GMAIL_USER, // Your Gmail address from .env
-      pass: process.env.GMAIL_PASS, // Your Gmail app password from .env
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASS,
     },
   });
 
-  // Email to the borrower
+  // Email to borrower
   let borrowerMailOptions = {
     from: process.env.GMAIL_USER,
-    to: borrowerEmail, // Send to the borrower email
-    subject: "Application Submitted",
+    to: borrowerEmail,
+    subject: 'Application Submitted',
     html: `
       <div class="container">
         <div class="header">
@@ -36,25 +35,23 @@ const sendEmail = async (borrowerEmail, borrowerName, appId, formDataToSend) => 
     `,
   };
 
-  // Email to the admin (with PDF and any attachments)
+  // Email to admin
   let adminMailOptions = {
     from: process.env.GMAIL_USER,
-    to: process.env.ADMIN_EMAIL, // Admin email from .env
+    to: process.env.ADMIN_EMAIL_1 + ',' + process.env.ADMIN_EMAIL_2, // Admins email from .env
     subject: `New Application Submission from ${borrowerName}`,
     text: `Application ID: ${appId}\nBorrower: ${borrowerName}`,
-    attachments: [...formDataToSend],
+    attachments: attachments,
   };
 
   try {
-    // Send email to borrower
     await transporter.sendMail(borrowerMailOptions);
-    console.log("Borrower email sent successfully.");
+    console.log('Borrower email sent successfully.');
 
-    // Send email to admin with PDF and attachments
     await transporter.sendMail(adminMailOptions);
-    console.log("Admin email with application sent successfully.");
+    console.log('Admin email with application sent successfully.');
   } catch (error) {
-    console.error("Error sending emails:", error);
+    console.error('Error sending emails:', error);
   }
 };
 

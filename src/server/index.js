@@ -1,78 +1,116 @@
+require('dotenv').config();
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const dotenv = require('dotenv');
+const { Pool } = require('pg');
 
-dotenv.config();
-
+// Setup Express
 const app = express();
-app.use(cors()); // Allow requests from frontend
-app.use(bodyParser.json());
+app.use(cors());
+app.use(express.json());
 
-// Email sending route
-app.post('/send-email', async (req, res) => {
-  const { borrowerEmail, borrowerName, appId, formDataToSend, attachments } = req.body;
+// PostgreSQL connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // Use the Railway Postgres URL here
+  ssl: {
+    rejectUnauthorized: false, // Required for Railway DBs with SSL
+  },
+});
+
+// Submit form
+app.post('/submit', async (req, res) => {
+  const {
+    companyName,
+    timeInBusiness,
+    addressLine1,
+    city,
+    state,
+    zipCode,
+    companyEmail,
+    companyPhone,
+    ein,
+    businessType,
+    borrowerFirstName,
+    borrowerLastName,
+    borrowerDOB,
+    borrowerOwnership,
+    borrowerSSN,
+    borrowerPhone,
+    borrowerEmail,
+    borrowerPreferredContact,
+    borrowerAddressLine1,
+    borrowerCity,
+    borrowerState,
+    borrowerZipCode,
+    loanAmount,
+    maxDownPayment,
+    equipmentSellerInfo,
+    signature,
+    coapplicantFirstName,
+    coapplicantLastName,
+    coapplicantDOB,
+    coapplicantOwnership,
+    coapplicantSSN,
+    coapplicantPhone,
+    coapplicantEmail,
+    coapplicantPreferredContact,
+    coapplicantAddressLine1,
+    coapplicantCity,
+    coapplicantState,
+    coapplicantZipCode,
+  } = req.body;
 
   try {
-    // Setup Nodemailer
-    let transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS,
-      },
-    });
+    await pool.query(
+      'INSERT INTO applications (company_name, time_in_business, address_line_1, city, state, zip_code, company_email, company_phone, ein, business_type, borrower_first_name, borrower_last_name, borrower_dob, borrower_ownership, borrower_ssn, borrower_phone, borrower_email, borrower_preferred_contact, borrower_address_line_1, borrower_city, borrower_state, borrower_zip_code, loan_amount, max_down_payment, equipment_seller_info, signature, coapplicant_first_name, coapplicant_last_name, coapplicant_dob, coapplicant_ownership, coapplicant_ssn, coapplicant_phone, coapplicant_email, coapplicant_preferred_contact, coapplicant_address_line_1, coapplicant_city, coapplicant_state, coapplicant_zip_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)',
+      [
+        companyName,
+        timeInBusiness,
+        addressLine1,
+        city,
+        state,
+        zipCode,
+        companyEmail,
+        companyPhone,
+        ein,
+        businessType,
+        borrowerFirstName,
+        borrowerLastName,
+        borrowerDOB,
+        borrowerOwnership,
+        borrowerSSN,
+        borrowerPhone,
+        borrowerEmail,
+        borrowerPreferredContact,
+        borrowerAddressLine1,
+        borrowerCity,
+        borrowerState,
+        borrowerZipCode,
+        loanAmount,
+        maxDownPayment,
+        equipmentSellerInfo,
+        signature,
+        coapplicantFirstName,
+        coapplicantLastName,
+        coapplicantDOB,
+        coapplicantOwnership,
+        coapplicantSSN,
+        coapplicantPhone,
+        coapplicantEmail,
+        coapplicantPreferredContact,
+        coapplicantAddressLine1,
+        coapplicantCity,
+        coapplicantState,
+        coapplicantZipCode,
+      ]
+    );
 
-    // Borrower Email
-    let borrowerMailOptions = {
-      from: process.env.GMAIL_USER,
-      to: borrowerEmail,
-      subject: 'Application Submitted',
-      html: `
-        <div class="container">
-          <div class="header">
-              <img src="https://hempire-enterprise.com/static/assets/img/Logo.png" alt="Company Logo">
-              <h2>Application Submitted</h2>
-          </div>
-          <div class="content">
-              <p>Dear ${borrowerName},</p>
-              <p>Thank you for submitting your application to Hempire Enterprise. We have received your application and our team is currently reviewing it.</p>
-              <p><strong>Application ID:</strong> ${appId}</p>
-              <p>If you have any questions, feel free to reply to this email.</p>
-              <p>Best regards,<br>The Hempire Enterprise Team</p>
-          </div>
-          <div class="footer">
-              <p>&copy; 2024 Hempire Enterprise. All rights reserved.</p>
-          </div>
-        </div>
-      `,
-    };
-
-    // Admin Email
-    let adminMailOptions = {
-      from: process.env.GMAIL_USER,
-      to: process.env.ADMIN_EMAILS.split(','), // Multiple admin emails
-      subject: `New Application Submission from ${borrowerName}`,
-      text: `Application ID: ${appId}\nBorrower: ${borrowerName}`,
-      attachments: attachments.map((file) => ({
-        filename: file.name,
-        content: Buffer.from(file.content, 'base64'), // Convert base64 to binary
-      })),
-    };
-
-    // Send emails
-    await transporter.sendMail(borrowerMailOptions);
-    await transporter.sendMail(adminMailOptions);
-
-    res.status(200).send('Emails sent successfully.');
+    res.status(200).send('Form submission successful!');
   } catch (error) {
-    console.error('Error sending emails:', error);
-    res.status(500).send('Error sending emails.');
+    console.error('Error saving form data:', error);
+    res.status(500).send('Error submitting form.');
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(5000, () => {
+  console.log('Server is running on http://localhost:5000');
 });

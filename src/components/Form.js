@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import axios from 'axios'; // For sending form data to the server
 import FileUpload from './FileUpload'; // Component for file uploads
-import SignaturePad from './SignaturePad'; // Component for signature capture
+import SignaturePad from './SignaturePad'; // Component for signature
 import Agreement from './Agreement'; // Component for agreement checkbox
 import InputMask from 'react-input-mask'; // For SSN and EIN masking
-import jsPDF from 'jspdf'; // For generating PDFs
 
 function Form() {
   const [formData, setFormData] = useState({
@@ -49,17 +48,60 @@ function Form() {
   });
 
   const [files, setFiles] = useState([]); // Store uploaded files
-  const [additionalFiles, setAdditionalFiles] = useState([]); // Additional files state
   const [signature, setSignature] = useState(''); // Store signature
   const [agreementChecked, setAgreementChecked] = useState(false); // Agreement checkbox state
+  const [additionalFiles, setAdditionalFiles] = useState([]); // Additional files state
 
   // Handle input changes for form fields
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'borrowerOwnership' || name === 'coapplicantOwnership') {
-      setFormData({ ...formData, [name]: value.replace(/[^0-9]/g, '') + '%' });
+      const numberValue = value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+      setFormData({ ...formData, [name]: numberValue + '%' }); // Append '%' symbol to ownership values
     } else {
       setFormData({ ...formData, [name]: value });
+    }
+  };
+
+  // Handle form submission
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+
+    // Basic validation
+    if (!agreementChecked) {
+      alert('You must agree to the terms and conditions before submitting.');
+      return;
+    }
+
+    console.log("Form data before submission: ", formData); // Log form data before submission
+    console.log("Files: ", files);
+    console.log("Additional Files: ", additionalFiles);
+
+    try {
+      // Make the request
+      const response = await axios.post('http://localhost:5000/submit', formData, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Response from server:', response); // Log server response
+      if (response.status === 200) {
+        alert('Application submitted successfully!');
+      } else {
+        console.error('Server responded with status: ', response.status);
+        alert('Error submitting form. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);  // Log detailed error
+      if (error.response) {
+        console.log('Error response:', error.response);
+      } else if (error.request) {
+        console.log('Error request:', error.request);
+      } else {
+        console.log('Error message:', error.message);
+      }
+      alert('Error submitting form. Please try again.');
     }
   };
 
@@ -67,60 +109,6 @@ function Form() {
   const addMoreFiles = (e) => {
     const newFiles = [...additionalFiles, ...e.target.files];
     setAdditionalFiles(newFiles);
-  };
-
-  // PDF generation
-  const generatePDF = () => {
-    const doc = new jsPDF();
-    doc.text('Loan Application Form', 10, 10);
-    doc.text(`Company Name: ${formData.companyName}`, 10, 20);
-    doc.text(`Borrower Name: ${formData.borrowerFirstName} ${formData.borrowerLastName}`, 10, 30);
-    doc.text(`Borrower Email: ${formData.borrowerEmail}`, 10, 40);
-    doc.text(`Business Type: ${formData.businessType}`, 10, 50);
-    doc.text(`Loan Amount: ${formData.loanAmount}`, 10, 60);
-    doc.text(`Max Down Payment: ${formData.maxDownPayment}`, 10, 70);
-    // Add more fields as needed
-    return doc.output('blob'); // Returns PDF blob
-  };
-
-  // Handle form submission
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!agreementChecked) {
-      alert('You must agree to the terms and conditions before submitting.');
-      return;
-    }
-
-    const pdfBlob = generatePDF();
-    const formDataToSend = {
-      borrowerEmail: formData.borrowerEmail,
-      borrowerName: `${formData.borrowerFirstName} ${formData.borrowerLastName}`,
-      appId: '12345', // Sample application ID
-      attachments: [...files, ...additionalFiles].map((file) => ({
-        name: file.name,
-        content: file.base64,
-      })),
-    };
-
-    try {
-      const response = await axios.post('http://localhost:5000/send-email', {
-        ...formDataToSend,
-        attachments: [
-          { name: 'application.pdf', content: await pdfBlob.text() },
-          ...formDataToSend.attachments,
-        ],
-      });
-
-      if (response.status === 200) {
-        alert('Application submitted successfully!');
-      } else {
-        alert('Failed to submit the application.');
-      }
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      alert('Error submitting form. Please try again.');
-    }
   };
 
   return (
